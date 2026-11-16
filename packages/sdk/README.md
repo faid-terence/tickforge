@@ -57,6 +57,7 @@ client.on("candle", (candle) => {}); // Candle
 client.on("status", (status) => {}); // StatusEvent
 client.on("error", (error) => {}); // TickforgeError
 client.on("warning", (warning) => {}); // WarningEvent
+client.on("gap", (gap) => {}); // GapEvent: trades were missed
 
 const off = client.on("trade", handler);
 off(); // remove the listener
@@ -117,6 +118,7 @@ and a `TypeError` for an unknown exchange.
 | `off(event, listener)`                | Removes a listener.                                                                  |
 | `state`                               | Current `ConnectionState`.                                                           |
 | `symbols`                             | Symbols subscribed or being subscribed.                                              |
+| `stats`                               | `{ gaps, missedTrades, duplicateTrades, outOfOrderTrades }` since creation.          |
 
 Symbols use `BASE-QUOTE` form (`"BTC-USD"`), case-insensitive. A malformed
 symbol throws a `TypeError` before anything is sent.
@@ -145,7 +147,8 @@ interface Candle {
   close: number;
   volume: number;
   trades: number; // number of trades in the candle
-  closed: boolean; // true exactly once, for the final version
+  closed: boolean; // true for the final version
+  incomplete: boolean; // true if a sequence gap means trades are missing
 }
 ```
 
@@ -209,7 +212,32 @@ Candles are built from the trade stream; Coinbase's feed has no candle channel.
   with a flat candle at the previous close.
 - Closed candles are final. A trade for an already closed minute still emits a
   `trade` event but changes no candle.
-- Trades missed while disconnected are missing from the candle too.
+- If trades are missed (see below), the affected candles get
+  `incomplete: true`, including one that already closed, which is emitted once
+  more with the flag set and its values unchanged.
+
+### Knowing when data is missing: `gap`
+
+Exchanges drop messages, and anything that trades while you are
+reconnecting is missed. tickforge detects both from Coinbase's trade ids,
+which increase by exactly 1 per trade per product, and from the `last_match`
+position Coinbase sends when (re)subscribing:
+
+```ts
+client.on("gap", (gap) => {
+  // { symbol: "BTC-USD", reason: "reconnect", expected: 1001, received: 1063,
+  //   missed: 62, from: 1767268800000, to: 1767268815000 }
+  console.warn(`${gap.symbol}: ${gap.missed} trades missed (${gap.reason})`);
+});
+console.log(client.stats); // { gaps, missedTrades, duplicateTrades, outOfOrderTrades }
+```
+
+- Candles overlapping the gap's `from`–`to` range get `incomplete: true`.
+  Minutes inside the range with no candle are unknown, not quiet.
+- **Duplicate** and **out-of-order** trades are dropped, never emitted, so they
+  can't double-count volume or rewind a close. They're counted in `stats`.
+- Missed trades are reported, not recovered. The event gives you the symbol and
+  id range if you want to backfill them from Coinbase's REST API yourself.
 
 ### Slow `for await` loops
 
