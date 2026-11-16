@@ -137,7 +137,9 @@ a new trusted publisher that has not published within 2 days expires.
    - `npm view @tickforge/sdk dist-tags` shows `latest: 0.1.0`.
    - `npm audit signatures` in a project that installs it reports a verified
      registry signature and a verified attestation.
-4. Retire the placeholders (asks for 2FA):
+4. Retire the placeholders (asks for 2FA). Run `npm deprecate` and
+   `npm access` from your own terminal: with browser-based 2FA, npm needs an
+   interactive terminal to open the approval and fails with `EOTP` elsewhere.
 
    ```sh
    npm deprecate @tickforge/sdk@0.0.0 "Bootstrap placeholder, use @tickforge/sdk@>=0.1.0"
