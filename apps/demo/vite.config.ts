@@ -5,7 +5,8 @@ import { defineConfig } from "vitest/config";
 const sdkSource = fileURLToPath(new URL("../../packages/sdk/src/index.ts", import.meta.url));
 
 export default defineConfig({
-  // GitHub Pages serves the site from /<repo>/; the Pages workflow sets BASE_PATH.
+  // Cloudflare Pages serves the demo from "/". Set BASE_PATH to host it under
+  // a sub-path instead (e.g. BASE_PATH=/tickforge/ for a GitHub Pages project site).
   base: process.env.BASE_PATH ?? "/",
   plugins: [react()],
   resolve: {
