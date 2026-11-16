@@ -56,7 +56,8 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "check:package": "publint --strict && attw --pack ."
+    "check:package": "publint --strict && attw --pack .",
+    "prepublishOnly": "pnpm build"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
