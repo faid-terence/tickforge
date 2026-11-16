@@ -9,7 +9,7 @@ Typed, resilient real-time market data for crypto exchange WebSocket feeds.
 One small client for Node and the browser: normalized trades, 1-minute
 candles, automatic reconnects, and no runtime dependencies.
 
-**[▶ Live demo](https://faid-terence.github.io/tickforge/)**: watch it stream, drop the connection on purpose,
+**[▶ Live demo](https://tickforge.pages.dev)**: watch it stream, drop the connection on purpose,
 and see it recover.
 
 ```ts

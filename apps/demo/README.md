@@ -1,6 +1,6 @@
 # tickforge demo
 
-**Live: https://faid-terence.github.io/tickforge/**
+**Live: https://tickforge.pages.dev**
 
 A React + Redux Toolkit app that streams Coinbase market data through the
 `tickforge` SDK and makes its guarantees visible:

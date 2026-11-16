@@ -2,14 +2,13 @@
 
 [![CI](https://github.com/faid-terence/tickforge/actions/workflows/ci.yml/badge.svg)](https://github.com/faid-terence/tickforge/actions/workflows/ci.yml)
 [![Release](https://github.com/faid-terence/tickforge/actions/workflows/release.yml/badge.svg)](https://github.com/faid-terence/tickforge/actions/workflows/release.yml)
-[![Deploy demo](https://github.com/faid-terence/tickforge/actions/workflows/pages.yml/badge.svg)](https://github.com/faid-terence/tickforge/actions/workflows/pages.yml)
 [![npm](https://img.shields.io/npm/v/tickforge)](https://www.npmjs.com/package/tickforge)
 [![license](https://img.shields.io/github/license/faid-terence/tickforge)](./LICENSE)
 
 A TypeScript SDK for real-time crypto market data: typed, resilient, and
 dependency-free, for Node and the browser.
 
-**[▶ Live demo](https://faid-terence.github.io/tickforge/)**: the SDK streaming Coinbase in a Web Worker.
+**[▶ Live demo](https://tickforge.pages.dev)**: the SDK streaming Coinbase in a Web Worker.
 Pull the plug with _Simulate disconnect_ and watch it reconnect and re-subscribe.
 
 ```ts
@@ -26,10 +25,10 @@ await client.subscribe(["BTC-USD"]);
 
 This is a pnpm workspace.
 
-| Path                             | What                                                                                |
-| -------------------------------- | ----------------------------------------------------------------------------------- |
-| [`packages/sdk`](./packages/sdk) | The `tickforge` npm package: client, adapters, candles.                             |
-| [`apps/demo`](./apps/demo)       | React + Redux Toolkit demo; the SDK runs in a Web Worker. Deployed to GitHub Pages. |
+| Path                             | What                                                                                                                  |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| [`packages/sdk`](./packages/sdk) | The `tickforge` npm package: client, adapters, candles.                                                               |
+| [`apps/demo`](./apps/demo)       | React + Redux Toolkit demo; the SDK runs in a Web Worker. Live at [tickforge.pages.dev](https://tickforge.pages.dev). |
 
 ## Development
 
