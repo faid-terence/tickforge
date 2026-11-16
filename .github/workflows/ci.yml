@@ -35,6 +35,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Same scripts, same order as `pnpm check:all` (package.json). Keep them in sync.
       - name: Lint
         run: pnpm lint
 
@@ -44,8 +45,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test (with coverage thresholds)
-        run: pnpm test:coverage
+      - name: Test (SDK with coverage thresholds, then every other workspace)
+        run: pnpm test:ci
 
       - name: Build
         run: pnpm build

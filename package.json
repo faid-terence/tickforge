@@ -18,7 +18,9 @@
     "check:package": "pnpm -r --filter \"./packages/**\" check:package",
     "changeset": "changeset",
     "dev": "pnpm --filter @tickforge/demo dev",
-    "size": "node scripts/bundle-size.mjs"
+    "size": "node scripts/bundle-size.mjs",
+    "test:ci": "pnpm --filter tickforge test:coverage && pnpm --filter './apps/**' --filter './packages/**' --filter '!tickforge' test",
+    "check:all": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:ci && pnpm build && pnpm check:package"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
