@@ -37,3 +37,19 @@ export function isStringArray(value: unknown): value is string[] {
 export function preview(raw: string, max = 200): string {
   return raw.length > max ? `${raw.slice(0, max)}…` : raw;
 }
+
+/**
+ * A trade sequence number: a non-negative safe integer, given as a number or
+ * a string of digits. Anything else (including integers too large to
+ * represent exactly) returns `undefined`, which disables gap detection for
+ * that message rather than risking false gaps.
+ */
+export function toSequence(value: unknown): number | undefined {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value)
+        ? Number(value)
+        : NaN;
+  return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+}

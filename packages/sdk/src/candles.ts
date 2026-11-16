@@ -26,6 +26,12 @@ export interface CandleBuilder {
   nextMinuteEnd(): number | undefined;
   /** Forgets everything about `symbol`. */
   delete(symbol: string): void;
+  /**
+   * Flags every candle for `symbol` whose minute overlaps the time range
+   * `[from, to]` (ms epoch) as `incomplete`, including candles opened later
+   * for minutes up to `to`. Returns the candles whose flag changed.
+   */
+  markIncomplete(symbol: string, from: number, to: number): Candle[];
 }
 
 /**
@@ -46,12 +52,20 @@ export interface CandleBuilder {
  *   (late or out of order) are not applied to any candle.
  * - Candles closed by {@link CandleAggregator.closeUntil} come out in the
  *   order their symbols' current candles were opened.
+ * - After a gap, {@link CandleAggregator.markIncomplete} flags the affected
+ *   candles. Only the most recently closed candle per symbol can still be
+ *   affected (earlier ones end before the last trade seen), so only that one
+ *   is kept after closing.
  * @public
  */
 export class CandleAggregator implements CandleBuilder {
   readonly #open = new Map<string, Mutable<Candle>>();
   /** Per symbol, the `openTime` of the newest closed candle. */
   readonly #closedThrough = new Map<string, number>();
+  /** Per symbol, the newest closed candle (the only one a gap can still reach). */
+  readonly #lastClosed = new Map<string, Candle>();
+  /** Per symbol, candles opening at or before this minute start out incomplete. */
+  readonly #incompleteThrough = new Map<string, number>();
 
   /**
    * Applies one trade. Returns the candles that changed, oldest first: the
@@ -87,11 +101,12 @@ export class CandleAggregator implements CandleBuilder {
       volume: trade.size,
       trades: 1,
       closed: false,
+      incomplete: openTime <= (this.#incompleteThrough.get(trade.symbol) ?? -Infinity),
     };
     this.#open.set(trade.symbol, next);
     if (!current) return [{ ...next }];
-    this.#closedThrough.set(trade.symbol, current.openTime);
-    return [{ ...current, closed: true }, { ...next }];
+    const closed = this.#close(current);
+    return [closed, { ...next }];
   }
 
   /**
@@ -103,8 +118,7 @@ export class CandleAggregator implements CandleBuilder {
     for (const [symbol, candle] of this.#open) {
       if (candle.openTime + MINUTE_MS > time) continue;
       this.#open.delete(symbol);
-      this.#closedThrough.set(symbol, candle.openTime);
-      closed.push({ ...candle, closed: true });
+      closed.push(this.#close(candle));
     }
     return closed;
   }
@@ -118,9 +132,42 @@ export class CandleAggregator implements CandleBuilder {
     return earliest === undefined ? undefined : earliest + MINUTE_MS;
   }
 
+  markIncomplete(symbol: string, from: number, to: number): Candle[] {
+    const first = minuteStart(from);
+    const last = minuteStart(to);
+    this.#incompleteThrough.set(
+      symbol,
+      Math.max(last, this.#incompleteThrough.get(symbol) ?? -Infinity),
+    );
+    const inRange = (c: Candle) => !c.incomplete && c.openTime >= first && c.openTime <= last;
+
+    const changed: Candle[] = [];
+    const closed = this.#lastClosed.get(symbol);
+    if (closed && inRange(closed)) {
+      const flagged = { ...closed, incomplete: true };
+      this.#lastClosed.set(symbol, flagged);
+      changed.push(flagged);
+    }
+    const open = this.#open.get(symbol);
+    if (open && inRange(open)) {
+      open.incomplete = true;
+      changed.push({ ...open });
+    }
+    return changed;
+  }
+
   /** Forgets everything about `symbol` (e.g. after unsubscribing). */
   delete(symbol: string): void {
     this.#open.delete(symbol);
     this.#closedThrough.delete(symbol);
+    this.#lastClosed.delete(symbol);
+    this.#incompleteThrough.delete(symbol);
+  }
+
+  #close(candle: Candle): Candle {
+    const closed = { ...candle, closed: true };
+    this.#closedThrough.set(candle.symbol, candle.openTime);
+    this.#lastClosed.set(candle.symbol, closed);
+    return closed;
   }
 }

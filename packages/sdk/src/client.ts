@@ -6,7 +6,15 @@ import { Connection } from "./connection.js";
 import { TypedEmitter } from "./emitter.js";
 import { AsyncQueue } from "./queue.js";
 import { resolveWebSocket, type WebSocketConstructor } from "./transport.js";
-import { TickforgeError, type ExchangeId, type MarketEvents, type Trade } from "./types.js";
+import { SequenceTracker, type GapRange } from "./sequence.js";
+import {
+  TickforgeError,
+  type ClientStats,
+  type ExchangeId,
+  type GapEvent,
+  type MarketEvents,
+  type Trade,
+} from "./types.js";
 import { preview } from "./validate.js";
 
 /**
@@ -135,6 +143,9 @@ export class MarketClient extends TypedEmitter<MarketEvents> {
   #inFlight: InFlightFrame[] = [];
   /** The frame whose ack is being processed (already removed from `#inFlight`). */
   #completing: InFlightFrame | undefined;
+  /** Per-symbol trade sequence, for gap / duplicate / out-of-order detection. */
+  readonly #sequences = new SequenceTracker();
+  readonly #stats = { gaps: 0, missedTrades: 0, duplicateTrades: 0, outOfOrderTrades: 0 };
   readonly #iterators = new Set<AsyncQueue<Trade>>();
   #candleTimer: ReturnType<typeof setTimeout> | undefined;
   #closing: Promise<void> | undefined;
@@ -182,6 +193,14 @@ export class MarketClient extends TypedEmitter<MarketEvents> {
   }
 
   /** Symbols currently subscribed (or being subscribed), in normalized form. */
+  /**
+   * Data-integrity counters since the client was created: gaps, missed,
+   * duplicate and out-of-order trades. Returns a snapshot.
+   */
+  get stats(): ClientStats {
+    return { ...this.#stats };
+  }
+
   get symbols(): readonly string[] {
     return [...this.#desired];
   }
@@ -399,6 +418,7 @@ export class MarketClient extends TypedEmitter<MarketEvents> {
       this.#desired.delete(s);
       this.#active.delete(s);
       this.#candles.delete(s);
+      this.#sequences.delete(s);
     }
   }
 
@@ -562,6 +582,29 @@ export class MarketClient extends TypedEmitter<MarketEvents> {
     this.#candleTimer = undefined;
   }
 
+  /**
+   * Trades are known to be missing: count it, tell the user, and flag every
+   * candle the missing range could have touched, so no candle silently
+   * understates volume or misses a high/low.
+   */
+  #reportGap(symbol: string, reason: GapEvent["reason"], range: GapRange): void {
+    const missed = range.received - range.expected;
+    this.#stats.gaps += 1;
+    this.#stats.missedTrades += missed;
+    this.emit("gap", {
+      symbol,
+      reason,
+      expected: range.expected,
+      received: range.received,
+      missed,
+      from: range.from,
+      to: range.to,
+    });
+    for (const candle of this.#candles.markIncomplete(symbol, range.from, range.to)) {
+      this.emit("candle", candle);
+    }
+  }
+
   #handleMessage(raw: string): void {
     const event: AdapterEvent = this.#adapter.parse(raw);
     switch (event.type) {
@@ -569,6 +612,18 @@ export class MarketClient extends TypedEmitter<MarketEvents> {
         const { trade } = event;
         // Drop trades for symbols just unsubscribed but not yet acknowledged.
         if (!this.#desired.has(trade.symbol)) return;
+        if (event.sequence !== undefined) {
+          const verdict = this.#sequences.trade(trade.symbol, event.sequence, trade.timestamp);
+          if (verdict.kind === "duplicate") {
+            this.#stats.duplicateTrades += 1;
+            return;
+          }
+          if (verdict.kind === "out-of-order") {
+            this.#stats.outOfOrderTrades += 1;
+            return;
+          }
+          if (verdict.kind === "gap") this.#reportGap(trade.symbol, "stream", verdict);
+        }
         this.emit("trade", trade);
         for (const candle of this.#candles.add(trade)) this.emit("candle", candle);
         this.#scheduleCandleClose();
@@ -590,6 +645,12 @@ export class MarketClient extends TypedEmitter<MarketEvents> {
           }),
         );
         return;
+      case "position": {
+        if (!this.#desired.has(event.symbol)) return;
+        const verdict = this.#sequences.position(event.symbol, event.sequence, event.timestamp);
+        if (verdict.kind === "gap") this.#reportGap(event.symbol, "reconnect", verdict);
+        return;
+      }
       case "ignored":
         return;
       default: {

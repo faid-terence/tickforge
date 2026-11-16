@@ -11,9 +11,11 @@ export type { WebSocketConstructor, WebSocketLike } from "./transport.js";
 export { TickforgeError } from "./types.js";
 export type {
   Candle,
+  ClientStats,
   ConnectionState,
   ErrorCode,
   ExchangeId,
+  GapEvent,
   MarketEvents,
   StatusEvent,
   Trade,

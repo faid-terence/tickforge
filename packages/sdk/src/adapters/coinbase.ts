@@ -1,4 +1,4 @@
-import { isObject, isStringArray, toEpochMs, toFiniteNumber } from "../validate.js";
+import { isObject, isStringArray, toEpochMs, toFiniteNumber, toSequence } from "../validate.js";
 import type { AdapterEvent, ExchangeAdapter } from "./types.js";
 
 /**
@@ -12,6 +12,12 @@ import type { AdapterEvent, ExchangeAdapter } from "./types.js";
  * - There is no candle channel, so candles are derived from trades.
  * - Coinbase disconnects clients that don't subscribe within 5s of connecting,
  *   which is why the client only connects on the first `subscribe()`.
+ *
+ * Gap detection uses `trade_id`, NOT `sequence` (verified on the live feed,
+ * 2026-11-16): `trade_id` increases by exactly 1 per trade per product, while
+ * `sequence` numbers the whole order-book stream, so it jumps between matches
+ * by design. `last_match`, sent on every (re)subscribe, carries the latest
+ * trade_id, which reveals trades missed while disconnected.
  */
 const CHANNELS = ["matches", "heartbeat"] as const;
 
@@ -36,8 +42,10 @@ function parseMatch(msg: Record<string, unknown>): AdapterEvent {
     return invalid("match: missing trade_id");
   }
 
+  const sequence = toSequence(tradeId);
   return {
     type: "trade",
+    ...(sequence !== undefined && { sequence }),
     trade: {
       exchange: "coinbase",
       symbol,
@@ -67,6 +75,17 @@ function parseSubscriptions(msg: Record<string, unknown>): AdapterEvent {
     return invalid("subscriptions: invalid product_ids");
   }
   return { type: "ack", subscribed: matches.product_ids };
+}
+
+/** `last_match`: the latest trade before we subscribed. Used as a position, never as a trade. */
+function parseLastMatch(msg: Record<string, unknown>): AdapterEvent {
+  const symbol = msg.product_id;
+  const sequence = toSequence(msg.trade_id);
+  const timestamp = toEpochMs(msg.time);
+  if (typeof symbol !== "string" || symbol === "") return invalid("last_match: missing product_id");
+  if (sequence === undefined) return invalid("last_match: invalid trade_id");
+  if (timestamp === undefined) return invalid("last_match: invalid time");
+  return { type: "position", symbol, sequence, timestamp };
 }
 
 function invalid(reason: string): AdapterEvent {
@@ -100,9 +119,10 @@ export const coinbase: ExchangeAdapter = {
         return { type: "exchange-error", message: message + reason };
       }
       case "last_match":
-        // A replay of the last trade before we subscribed. Re-sent on every
-        // reconnect, so emitting it would duplicate trades and skew candles.
-        return { type: "ignored" };
+        // A replay of the last trade before we subscribed, re-sent on every
+        // reconnect. Emitting it would duplicate trades and skew candles, so it
+        // is reported as a position marker for gap detection only.
+        return parseLastMatch(msg);
       default:
         // heartbeat, and any message type Coinbase adds in the future.
         // Unknown types are not errors: that keeps old SDK versions working.

@@ -5,7 +5,18 @@ import type { ExchangeId, Trade } from "../types.js";
  * so the client's `switch` is exhaustively type-checked.
  */
 export type AdapterEvent =
-  | { type: "trade"; trade: Trade }
+  /**
+   * `sequence`: the exchange's per-symbol trade number, if it numbers trades
+   * contiguously (each trade is exactly 1 more than the previous one for the
+   * same symbol). Enables gap and duplicate detection. Omitted otherwise.
+   */
+  | { type: "trade"; trade: Trade; sequence?: number }
+  /**
+   * The exchange's latest trade sequence number for a symbol at the moment we
+   * (re)subscribed, without a trade to emit. Lets the client detect trades
+   * missed while it was disconnected. `timestamp` is that trade's time.
+   */
+  | { type: "position"; symbol: string; sequence: number; timestamp: number }
   /**
    * The exchange answered the oldest pending subscribe/unsubscribe request.
    * `subscribed` is the exchange's full subscription list after applying it;
