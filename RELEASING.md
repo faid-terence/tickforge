@@ -90,6 +90,15 @@ The dry run should show `@tickforge/sdk@0.0.0`, 9 files, tag `latest`, public
 access. The real publish rebuilds `dist/` first (`prepublishOnly`) and asks
 for 2FA.
 
+A brand-new package takes a few minutes to appear. While npm processes it,
+the registry may list only a `0.0.0-stage` placeholder (it stays in the
+version list afterwards), and the tarball can return 404 from the CDN.
+`npm view` may also show cached data; query the registry directly to check:
+
+```sh
+curl -s "https://registry.npmjs.org/@tickforge%2Fsdk" | grep -o '"dist-tags":{[^}]*}'
+```
+
 ### 4. npmjs.com: trust the workflow
 
 Do this **no more than 2 days before** merging the first Version Packages PR:
@@ -126,10 +135,13 @@ a new trusted publisher that has not published within 2 days expires.
 3. Verify:
    - npmjs.com/package/@tickforge/sdk shows `0.1.0` with a **Provenance** badge.
    - `npm view @tickforge/sdk dist-tags` shows `latest: 0.1.0`.
-4. Retire the placeholder:
+   - `npm audit signatures` in a project that installs it reports a verified
+     registry signature and a verified attestation.
+4. Retire the placeholders (asks for 2FA):
 
    ```sh
    npm deprecate @tickforge/sdk@0.0.0 "Bootstrap placeholder, use @tickforge/sdk@>=0.1.0"
+   npm deprecate @tickforge/sdk@0.0.0-stage "Registry placeholder, use @tickforge/sdk@>=0.1.0"
    ```
 
 ## Troubleshooting
