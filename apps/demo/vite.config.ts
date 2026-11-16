@@ -12,7 +12,7 @@ export default defineConfig({
   resolve: {
     // Use the SDK's source, not its build output: edits to the SDK hot-reload
     // in the demo, and there is no "build the SDK first" step to forget.
-    alias: { tickforge: sdkSource },
+    alias: { "@tickforge/sdk": sdkSource },
   },
   worker: { format: "es" },
   build: { target: "es2022", sourcemap: true },

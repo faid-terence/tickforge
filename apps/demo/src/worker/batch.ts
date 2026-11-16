@@ -1,4 +1,4 @@
-import type { Candle, Trade } from "tickforge";
+import type { Candle, Trade } from "@tickforge/sdk";
 import type { Batch, Counters, DemoSymbol, LogEntry, StatusSnapshot } from "./protocol";
 
 /**

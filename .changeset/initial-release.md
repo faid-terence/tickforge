@@ -1,5 +1,5 @@
 ---
-"tickforge": minor
+"@tickforge/sdk": minor
 ---
 
 First release: a typed, resilient real-time market data client for the Coinbase Exchange feed, for Node 22+ and browsers, with no runtime dependencies.

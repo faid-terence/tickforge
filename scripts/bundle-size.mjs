@@ -11,9 +11,9 @@ import { build } from "esbuild";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 const entries = {
-  "MarketClient (everything)": `import { MarketClient } from "tickforge"; console.log(MarketClient);`,
-  "TickforgeError only": `import { TickforgeError } from "tickforge"; console.log(TickforgeError);`,
-  "CandleAggregator only": `import { CandleAggregator } from "tickforge"; console.log(CandleAggregator);`,
+  "MarketClient (everything)": `import { MarketClient } from "@tickforge/sdk"; console.log(MarketClient);`,
+  "TickforgeError only": `import { TickforgeError } from "@tickforge/sdk"; console.log(TickforgeError);`,
+  "CandleAggregator only": `import { CandleAggregator } from "@tickforge/sdk"; console.log(CandleAggregator);`,
 };
 
 const rows = [];
@@ -25,7 +25,7 @@ for (const [name, contents] of Object.entries(entries)) {
     format: "esm",
     platform: "neutral",
     write: false,
-    alias: { tickforge: `${root}/packages/sdk/dist/index.js` },
+    alias: { "@tickforge/sdk": `${root}/packages/sdk/dist/index.js` },
     logLevel: "silent",
   });
   const code = result.outputFiles[0].contents;

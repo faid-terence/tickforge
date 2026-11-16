@@ -1,5 +1,5 @@
 {
-  "name": "tickforge",
+  "name": "@tickforge/sdk",
   "version": "0.0.0",
   "description": "Typed, resilient real-time market data client for crypto exchange WebSocket feeds. Works in Node and the browser.",
   "license": "MIT",

@@ -5,7 +5,7 @@
  * BatchAccumulator and posts one message every FLUSH_MS. The UI therefore
  * re-renders at most 10 times a second however busy the market is.
  */
-import { MarketClient, type StatusEvent, type TradeIterator } from "tickforge";
+import { MarketClient, type StatusEvent, type TradeIterator } from "@tickforge/sdk";
 import { BatchAccumulator } from "./batch";
 import { describeFrame, instrumentWebSocket } from "./instrumented-websocket";
 import type { Command, DemoSymbol, WorkerMessage } from "./protocol";

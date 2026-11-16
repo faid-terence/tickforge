@@ -1,9 +1,9 @@
 # tickforge
 
 [![CI](https://github.com/faid-terence/tickforge/actions/workflows/ci.yml/badge.svg)](https://github.com/faid-terence/tickforge/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/tickforge)](https://www.npmjs.com/package/tickforge)
-[![types](https://img.shields.io/npm/types/tickforge)](https://www.npmjs.com/package/tickforge)
-[![license](https://img.shields.io/npm/l/tickforge)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/%40tickforge%2Fsdk)](https://www.npmjs.com/package/@tickforge/sdk)
+[![types](https://img.shields.io/npm/types/%40tickforge%2Fsdk)](https://www.npmjs.com/package/@tickforge/sdk)
+[![license](https://img.shields.io/npm/l/%40tickforge%2Fsdk)](./LICENSE)
 
 Typed, resilient real-time market data for crypto exchange WebSocket feeds.
 One small client for Node and the browser: normalized trades, 1-minute
@@ -13,7 +13,7 @@ candles, automatic reconnects, and no runtime dependencies.
 and see it recover.
 
 ```ts
-import { MarketClient } from "tickforge";
+import { MarketClient } from "@tickforge/sdk";
 
 const client = new MarketClient({ exchange: "coinbase" });
 client.on("trade", (t) => console.log(t.symbol, t.side, t.price, t.size));
@@ -34,7 +34,7 @@ await client.subscribe(["BTC-USD", "ETH-USD"]);
 ## Install
 
 ```sh
-npm install tickforge
+npm install @tickforge/sdk
 ```
 
 Requires Node 22+ or any modern browser or web worker. Both have a global

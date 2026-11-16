@@ -1,4 +1,4 @@
-import type { Candle, Trade } from "tickforge";
+import type { Candle, Trade } from "@tickforge/sdk";
 import type { ChartCandle } from "../lib/candles";
 
 export const T0 = Date.UTC(2026, 0, 1, 12, 0, 0);

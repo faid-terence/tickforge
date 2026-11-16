@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/faid-terence/tickforge/actions/workflows/ci.yml/badge.svg)](https://github.com/faid-terence/tickforge/actions/workflows/ci.yml)
 [![Release](https://github.com/faid-terence/tickforge/actions/workflows/release.yml/badge.svg)](https://github.com/faid-terence/tickforge/actions/workflows/release.yml)
-[![npm](https://img.shields.io/npm/v/tickforge)](https://www.npmjs.com/package/tickforge)
+[![npm](https://img.shields.io/npm/v/%40tickforge%2Fsdk)](https://www.npmjs.com/package/@tickforge/sdk)
 [![license](https://img.shields.io/github/license/faid-terence/tickforge)](./LICENSE)
 
 A TypeScript SDK for real-time crypto market data: typed, resilient, and
@@ -12,7 +12,7 @@ dependency-free, for Node and the browser.
 Pull the plug with _Simulate disconnect_ and watch it reconnect and re-subscribe.
 
 ```ts
-import { MarketClient } from "tickforge";
+import { MarketClient } from "@tickforge/sdk";
 
 const client = new MarketClient({ exchange: "coinbase" });
 client.on("trade", (t) => console.log(t.symbol, t.price));

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import type { Trade } from "tickforge";
+import type { Trade } from "@tickforge/sdk";
 import { formatClock, formatPrice, formatSize } from "../lib/format";
 
 export interface TradesListProps {

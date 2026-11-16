@@ -5,7 +5,7 @@
  * client itself lives entirely inside the worker, so its socket, timers and
  * parsing never compete with React for the main thread.
  */
-import type { Candle, ConnectionState, Trade } from "tickforge";
+import type { Candle, ConnectionState, Trade } from "@tickforge/sdk";
 
 export const SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD"] as const;
 export type DemoSymbol = (typeof SYMBOLS)[number];

@@ -90,10 +90,10 @@ jobs:
       # Re-check exactly what is published (the SDK). The whole repo, including
       # the Rust/Wasm package, is checked by CI on every push and PR.
       - run: pnpm exec eslint packages/sdk
-      - run: pnpm --filter tickforge typecheck
-      - run: pnpm --filter tickforge test
-      - run: pnpm --filter tickforge build
-      - run: pnpm --filter tickforge check:package
+      - run: pnpm --filter @tickforge/sdk typecheck
+      - run: pnpm --filter @tickforge/sdk test
+      - run: pnpm --filter @tickforge/sdk build
+      - run: pnpm --filter @tickforge/sdk check:package
       - id: pack
         uses: changesets/action/pack@v2
         with:

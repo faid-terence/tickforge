@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import type { Trade } from "tickforge";
+import type { Trade } from "@tickforge/sdk";
 import { mergeCandles, type ChartCandle } from "../lib/candles";
 import type { Counters, DemoSymbol } from "../worker/protocol";
 import { batchReceived, historyFailed, historyLoaded } from "./actions";

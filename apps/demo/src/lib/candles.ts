@@ -1,4 +1,4 @@
-import type { Candle } from "tickforge";
+import type { Candle } from "@tickforge/sdk";
 
 /** A candle on the chart, tagged with where it came from. */
 export interface ChartCandle extends Candle {
