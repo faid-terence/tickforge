@@ -43,6 +43,26 @@ describe("live Coinbase feed", () => {
     expect(errors).toEqual([]);
   });
 
+  it("reports no false gaps, duplicates or reordering on a healthy stream", async () => {
+    client = new MarketClient({ exchange: "coinbase" });
+    const gaps: unknown[] = [];
+    client.on("gap", (g) => gaps.push(g));
+    let trades = 0;
+    client.on("trade", () => (trades += 1));
+    await client.subscribe(["BTC-USD", "ETH-USD"]);
+    await new Promise((r) => setTimeout(r, 15_000));
+    expect(trades).toBeGreaterThan(0);
+    // Coinbase may legitimately drop a message now and then; if this ever
+    // fails, check the gap details before suspecting the detector.
+    expect(gaps).toEqual([]);
+    expect(client.stats).toEqual({
+      gaps: 0,
+      missedTrades: 0,
+      duplicateTrades: 0,
+      outOfOrderTrades: 0,
+    });
+  });
+
   it("rejects an unknown product but keeps the valid subscription", async () => {
     client = new MarketClient({ exchange: "coinbase" });
     await client.subscribe(["BTC-USD"]);

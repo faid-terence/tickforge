@@ -40,6 +40,7 @@ describe("CandleAggregator", () => {
         volume: 2,
         trades: 1,
         closed: false,
+        incomplete: false,
       },
     ]);
   });
@@ -120,6 +121,60 @@ describe("CandleAggregator", () => {
     expect(agg.add(trade(61_000, 101))).toEqual([
       expect.objectContaining({ openTime: T0 + 60_000, open: 101, closed: false }),
     ]);
+  });
+
+  describe("markIncomplete (after a sequence gap)", () => {
+    it("flags the open candle in place when the gap overlaps its minute", () => {
+      const agg = new CandleAggregator();
+      agg.add(trade(1_000, 100));
+      const changed = agg.markIncomplete("BTC-USD", T0 + 1_000, T0 + 30_000);
+      expect(changed).toEqual([
+        expect.objectContaining({ openTime: T0, closed: false, incomplete: true }),
+      ]);
+      // Later updates to the same minute stay flagged.
+      expect(agg.add(trade(40_000, 101))[0]).toMatchObject({ incomplete: true, trades: 2 });
+    });
+
+    it("re-emits the last CLOSED candle once, values unchanged, when the gap reaches back into it", () => {
+      const agg = new CandleAggregator();
+      agg.add(trade(50_000, 100));
+      const [closed] = agg.closeUntil(T0 + 60_000); // closed by the timer during an outage
+      const changed = agg.markIncomplete("BTC-USD", T0 + 50_000, T0 + 75_000);
+      expect(changed).toEqual([{ ...closed, incomplete: true }]);
+      // Idempotent: nothing changes a second time.
+      expect(agg.markIncomplete("BTC-USD", T0 + 50_000, T0 + 75_000)).toEqual([]);
+    });
+
+    it("flags candles opened later for minutes inside the gap, and not after it", () => {
+      const agg = new CandleAggregator();
+      agg.add(trade(1_000, 100));
+      agg.markIncomplete("BTC-USD", T0 + 1_000, T0 + 125_000); // gap reaches minute 2
+      // The trade that revealed the gap lands in minute 2: its new candle starts incomplete.
+      const [closedMinute0, minute2] = agg.add(trade(125_000, 110));
+      expect(closedMinute0).toMatchObject({ openTime: T0, closed: true, incomplete: true });
+      expect(minute2).toMatchObject({ openTime: T0 + 120_000, incomplete: true });
+      expect(agg.add(trade(185_000, 111))[1]).toMatchObject({
+        openTime: T0 + 180_000,
+        incomplete: false,
+      });
+    });
+
+    it("leaves candles outside the gap alone, and other symbols too", () => {
+      const agg = new CandleAggregator();
+      agg.add(trade(1_000, 100));
+      agg.add(trade(1_000, 5, 1, "ETH-USD"));
+      expect(agg.markIncomplete("BTC-USD", T0 + 120_000, T0 + 130_000)).toEqual([]);
+      expect(agg.markIncomplete("BTC-USD", T0 + 1_000, T0 + 2_000)).toHaveLength(1);
+      expect(agg.add(trade(2_000, 6, 1, "ETH-USD"))[0]).toMatchObject({ incomplete: false });
+    });
+
+    it("delete() also forgets incomplete state", () => {
+      const agg = new CandleAggregator();
+      agg.add(trade(1_000, 100));
+      agg.markIncomplete("BTC-USD", T0, T0 + 300_000);
+      agg.delete("BTC-USD");
+      expect(agg.add(trade(2_000, 100))[0]).toMatchObject({ incomplete: false });
+    });
   });
 
   it("delete() forgets the candle in progress", () => {

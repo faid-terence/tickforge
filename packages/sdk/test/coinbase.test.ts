@@ -22,9 +22,10 @@ describe("coinbase adapter: requests", () => {
 });
 
 describe("coinbase adapter: parsing", () => {
-  it("normalizes a match into a Trade", () => {
-    expect(parse(fx.match())).toEqual({
+  it("normalizes a match into a Trade, with trade_id as its sequence", () => {
+    expect(parse(fx.match({ trade_id: 10 }))).toEqual({
       type: "trade",
+      sequence: 10,
       trade: {
         exchange: "coinbase",
         symbol: "BTC-USD",
@@ -75,10 +76,46 @@ describe("coinbase adapter: parsing", () => {
 
   it.each([
     ["heartbeat", fx.heartbeat],
-    ["last_match (replayed on every reconnect)", fx.match({ type: "last_match" })],
     ["unknown future message types", { type: "brand_new_channel" }],
   ])("ignores %s", (_name, msg) => {
     expect(parse(msg)).toEqual({ type: "ignored" });
+  });
+});
+
+describe("coinbase adapter: sequence numbers", () => {
+  it("uses trade_id (numbers or digit strings) as the per-product sequence", () => {
+    expect(parse(fx.match({ trade_id: 42 }))).toMatchObject({ type: "trade", sequence: 42 });
+    expect(parse(fx.match({ trade_id: "42" }))).toMatchObject({ type: "trade", sequence: 42 });
+  });
+
+  it("emits trades without a sequence when trade_id is not a safe integer", () => {
+    for (const tradeId of ["abc", "9007199254740993", -1, 1.5]) {
+      const event = parse(fx.match({ trade_id: tradeId }));
+      expect(event.type).toBe("trade");
+      expect(event).not.toHaveProperty("sequence");
+    }
+  });
+
+  it("turns last_match into a position marker, never a trade", () => {
+    expect(
+      parse(fx.lastMatch({ trade_id: 777, product_id: "ETH-USD", time: "2026-01-01T12:00:00Z" })),
+    ).toEqual({
+      type: "position",
+      symbol: "ETH-USD",
+      sequence: 777,
+      timestamp: Date.UTC(2026, 0, 1, 12),
+    });
+  });
+
+  it.each([
+    ["no product_id", { product_id: undefined }, /product_id/],
+    ["a non-integer trade_id", { trade_id: "x" }, /trade_id/],
+    ["a bad time", { time: "yesterday" }, /time/],
+  ])("rejects a last_match with %s", (_name, overrides, reason) => {
+    expect(parse(fx.lastMatch(overrides))).toEqual({
+      type: "invalid",
+      reason: expect.stringMatching(reason),
+    });
   });
 });
 

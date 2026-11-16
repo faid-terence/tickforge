@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MarketClient,
   type Candle,
+  type GapEvent,
+  type Trade,
   TickforgeError,
   type MarketClientOptions,
   type StatusEvent,
@@ -50,6 +52,7 @@ function liveMatch(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  fx.resetTradeIds();
   vi.useFakeTimers();
   vi.setSystemTime(Date.UTC(2026, 0, 1, 12, 0, 0));
   vi.spyOn(Math, "random").mockReturnValue(0.5);
@@ -457,7 +460,7 @@ describe("MarketClient: data events", () => {
 
     socket.receive(liveMatch({ price: "100", size: "1" }));
     vi.setSystemTime(Date.now() + 60_000); // next minute, without firing the stale timer
-    socket.receive(liveMatch({ price: "110", size: "2", trade_id: 11 }));
+    socket.receive(liveMatch({ price: "110", size: "2" }));
 
     expect(trades).toHaveBeenCalledTimes(2);
     expect(trades.mock.calls[0]![0]).toMatchObject({ symbol: "BTC-USD", price: 100, size: 1 });
@@ -876,6 +879,7 @@ describe("MarketClient: custom candle builder", () => {
       closeUntil: vi.fn(() => []),
       nextMinuteEnd: vi.fn(() => undefined),
       delete: vi.fn(),
+      markIncomplete: vi.fn(() => []),
     };
     const { client } = createClient({ candleBuilder: builder });
     const candles = vi.fn();
@@ -888,5 +892,154 @@ describe("MarketClient: custom candle builder", () => {
     expect(candles).toHaveBeenCalledWith(built);
     await client.unsubscribe(["BTC-USD"]);
     expect(builder.delete).toHaveBeenCalledWith("BTC-USD");
+  });
+});
+
+describe("MarketClient: sequence gaps, duplicates and reordering", () => {
+  /** Subscribed to BTC-USD with the exchange position at trade 100 (as Coinbase's last_match). */
+  async function tracked(options: Partial<MarketClientOptions> = {}) {
+    const ctx = createClient({ staleTimeoutMs: 600_000, ...options });
+    const sub = ctx.client.subscribe(["BTC-USD"]);
+    const socket = openAndAck(["BTC-USD"]);
+    await sub;
+    socket.receive(fx.lastMatch({ trade_id: 100, time: new Date().toISOString() }));
+    const gaps: GapEvent[] = [];
+    const trades: Trade[] = [];
+    const candles: Candle[] = [];
+    ctx.client.on("gap", (g) => gaps.push(g));
+    ctx.client.on("trade", (t) => trades.push(t));
+    ctx.client.on("candle", (c) => candles.push(c));
+    return { ...ctx, socket, gaps, trades, candles };
+  }
+  const id = (n: number) => liveMatch({ trade_id: n });
+
+  it("emits nothing extra for a contiguous stream after last_match", async () => {
+    const { client, socket, gaps, trades } = await tracked();
+    socket.receive(id(101));
+    socket.receive(id(102));
+    expect(gaps).toEqual([]);
+    expect(trades).toHaveLength(2);
+    expect(client.stats).toEqual({
+      gaps: 0,
+      missedTrades: 0,
+      duplicateTrades: 0,
+      outOfOrderTrades: 0,
+    });
+  });
+
+  it("reports a mid-stream gap, still delivers the trade, and flags the candle incomplete", async () => {
+    const { client, socket, gaps, trades, candles } = await tracked();
+    socket.receive(id(101));
+    const before = Date.now();
+    vi.setSystemTime(before + 5_000);
+    socket.receive(id(105));
+    expect(gaps).toEqual([
+      {
+        symbol: "BTC-USD",
+        reason: "stream",
+        expected: 102,
+        received: 105,
+        missed: 3,
+        from: before,
+        to: before + 5_000,
+      },
+    ]);
+    expect(trades.map((t) => t.id)).toEqual(["101", "105"]);
+    // The open candle is re-emitted flagged, then updated by trade 105, still flagged.
+    expect(candles.map((c) => [c.trades, c.incomplete])).toEqual([
+      [1, false],
+      [1, true],
+      [2, true],
+    ]);
+    expect(client.stats).toMatchObject({ gaps: 1, missedTrades: 3 });
+  });
+
+  it("drops duplicates and out-of-order trades, counting them, so candles are not skewed", async () => {
+    const { client, socket, gaps, trades, candles } = await tracked();
+    socket.receive(id(101));
+    socket.receive(id(102));
+    socket.receive(id(102)); // duplicate
+    socket.receive(id(101)); // out of order (already past it)
+    socket.receive(id(103));
+    expect(trades.map((t) => t.id)).toEqual(["101", "102", "103"]);
+    expect(candles.at(-1)).toMatchObject({ trades: 3, incomplete: false });
+    expect(gaps).toEqual([]);
+    expect(client.stats).toMatchObject({ duplicateTrades: 1, outOfOrderTrades: 1, gaps: 0 });
+  });
+
+  it("detects trades missed while reconnecting from last_match on the new connection", async () => {
+    const { client, socket, gaps, candles } = await tracked();
+    socket.receive(id(101));
+    const lastSeenAt = Date.now();
+    socket.serverClose();
+    vi.advanceTimersByTime(1_000);
+    const next = FakeWebSocket.last;
+    next.open();
+    next.receive(fx.subscriptions(["BTC-USD"]));
+    // The exchange moved on to trade 362 while we were away: 102..362 missed.
+    next.receive(fx.lastMatch({ trade_id: 362, time: new Date().toISOString() }));
+    expect(gaps).toEqual([
+      {
+        symbol: "BTC-USD",
+        reason: "reconnect",
+        expected: 102,
+        received: 363,
+        missed: 261,
+        from: lastSeenAt,
+        to: lastSeenAt + 1_000,
+      },
+    ]);
+    expect(candles.at(-1)).toMatchObject({ incomplete: true });
+    next.receive(id(363));
+    expect(gaps).toHaveLength(1); // the stream continues normally afterwards
+    expect(client.stats).toMatchObject({ gaps: 1, missedTrades: 261 });
+  });
+
+  it("reports no gap when nothing traded during the reconnect", async () => {
+    const { socket, gaps } = await tracked();
+    socket.receive(id(101));
+    socket.serverClose();
+    vi.advanceTimersByTime(1_000);
+    FakeWebSocket.last.open();
+    FakeWebSocket.last.receive(fx.subscriptions(["BTC-USD"]));
+    FakeWebSocket.last.receive(fx.lastMatch({ trade_id: 101, time: new Date().toISOString() }));
+    FakeWebSocket.last.receive(id(102));
+    expect(gaps).toEqual([]);
+  });
+
+  it("does not call a deliberate unsubscribe/resubscribe a gap", async () => {
+    const { client, socket, gaps } = await tracked();
+    socket.receive(id(101));
+    const unsub = client.unsubscribe(["BTC-USD"]); // last symbol: goes idle
+    await unsub;
+    const again = client.subscribe(["BTC-USD"]);
+    openAndAck(["BTC-USD"]);
+    await again;
+    FakeWebSocket.last.receive(fx.lastMatch({ trade_id: 5_000, time: new Date().toISOString() }));
+    FakeWebSocket.last.receive(id(5_001));
+    expect(gaps).toEqual([]);
+  });
+
+  it("re-emits an already closed candle as incomplete when a gap reaches back into its minute", async () => {
+    const { socket, candles } = await tracked();
+    vi.setSystemTime(Date.UTC(2026, 0, 1, 12, 0, 50));
+    socket.receive(id(101));
+    vi.advanceTimersByTime(12_000); // 12:01:02 — the timer closes minute 12:00
+    const closed = candles.at(-1);
+    expect(closed).toMatchObject({ closed: true, incomplete: false });
+    vi.setSystemTime(Date.UTC(2026, 0, 1, 12, 1, 15));
+    socket.receive(id(110)); // 102..109 missed, somewhere in 12:00:50–12:01:15
+    expect(candles.slice(-2)).toEqual([
+      { ...closed, incomplete: true }, // same values, now flagged
+      expect.objectContaining({ openTime: Date.UTC(2026, 0, 1, 12, 1), incomplete: true }),
+    ]);
+  });
+
+  it("skips gap detection for trades without a numeric id", async () => {
+    const { socket, gaps, trades } = await tracked();
+    socket.receive(liveMatch({ trade_id: "abc" }));
+    socket.receive(liveMatch({ trade_id: "abd" }));
+    expect(trades).toHaveLength(2);
+    expect(gaps).toEqual([]);
   });
 });

@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WS from "ws";
 import {
   MarketClient,
+  type GapEvent,
   type StatusEvent,
   type Trade,
   type WebSocketConstructor,
 } from "../src/index.js";
-import * as fx from "./fixtures/coinbase.js";
 import { MockCoinbaseServer } from "./helpers/mock-coinbase-server.js";
 
 /** Resolves with the first value of `event` matching `predicate`. */
@@ -58,7 +58,7 @@ describe.each(implementations)(
 
       const trade = waitFor<Trade>((cb) => client.on("trade", cb));
       const candle = waitFor((cb) => client.on("candle", cb));
-      server.broadcast(fx.match({ price: "64000.5", size: "0.01" }));
+      server.trade("BTC-USD", { fields: { price: "64000.5", size: "0.01" } });
       expect(await trade).toMatchObject({ symbol: "BTC-USD", price: 64000.5, size: 0.01 });
       expect(await candle).toMatchObject({ open: 64000.5, volume: 0.01, closed: false });
     });
@@ -98,7 +98,7 @@ describe.each(implementations)(
         const poll = setInterval(() => {
           if (server.received.length >= 2) {
             clearInterval(poll);
-            server.broadcast(fx.match({ product_id: "ETH-USD" }));
+            server.trade("ETH-USD");
           }
         }, 5);
         return () => {
@@ -120,7 +120,7 @@ describe.each(implementations)(
       server.broadcast("garbage");
       expect(await error).toMatchObject({ code: "PARSE_ERROR" });
       const trade = waitFor<Trade>((cb) => client.on("trade", cb));
-      server.broadcast(fx.match());
+      server.trade("BTC-USD");
       await trade;
     });
 
@@ -133,7 +133,7 @@ describe.each(implementations)(
           if (received.length === 3) break;
         }
       })();
-      for (const price of ["1", "2", "3"]) server.broadcast(fx.match({ price }));
+      for (const price of ["1", "2", "3"]) server.trade("BTC-USD", { fields: { price } });
       await loop;
       expect(received).toEqual([1, 2, 3]);
     });
@@ -154,8 +154,67 @@ describe.each(implementations)(
         channels: ["matches", "heartbeat"],
       });
       const trade = waitFor<Trade>((cb) => client.on("trade", cb));
-      server.broadcast(fx.match({ product_id: "ETH-USD" }));
+      server.trade("ETH-USD");
       expect(await trade).toMatchObject({ symbol: "ETH-USD" });
+    });
+
+    describe("sequence integrity", () => {
+      /** Resolves once `n` trades have been emitted. */
+      const collect = (n: number) =>
+        new Promise<Trade[]>((resolve) => {
+          const seen: Trade[] = [];
+          const off = client.on("trade", (t) => {
+            seen.push(t);
+            if (seen.length === n) {
+              off();
+              resolve(seen);
+            }
+          });
+        });
+
+      it("detects a mid-stream gap", async () => {
+        await client.subscribe(["BTC-USD"]);
+        const gap = waitFor<GapEvent>((cb) => client.on("gap", cb));
+        const done = collect(2);
+        const [first] = server.trade("BTC-USD");
+        server.trade("BTC-USD", { count: 4, deliver: false }); // the client misses 4 trades
+        const [resumed] = server.trade("BTC-USD");
+        expect(await gap).toMatchObject({
+          symbol: "BTC-USD",
+          reason: "stream",
+          expected: first! + 1,
+          received: resumed,
+          missed: 4,
+        });
+        await done;
+        expect(client.stats).toMatchObject({ gaps: 1, missedTrades: 4 });
+      });
+
+      it("detects trades missed across a reconnect, via last_match on the new connection", async () => {
+        await client.subscribe(["BTC-USD"]);
+        const before = collect(1);
+        server.trade("BTC-USD");
+        await before;
+        const gap = waitFor<GapEvent>((cb) => client.on("gap", cb));
+        server.dropAll();
+        server.trade("BTC-USD", { count: 7, deliver: false }); // traded while we were away
+        expect(await gap).toMatchObject({ symbol: "BTC-USD", reason: "reconnect", missed: 7 });
+        const after = collect(1);
+        server.trade("BTC-USD");
+        await after;
+        expect(client.stats.gaps).toBe(1); // the stream continues cleanly afterwards
+      });
+
+      it("drops duplicate and out-of-order trades and counts them", async () => {
+        await client.subscribe(["BTC-USD"]);
+        const received = collect(3);
+        const [a, b] = server.trade("BTC-USD", { count: 2 });
+        server.sendTrade("BTC-USD", b!); // duplicate
+        server.sendTrade("BTC-USD", a!); // out of order
+        const [c] = server.trade("BTC-USD");
+        expect((await received).map((t) => Number(t.id))).toEqual([a, b, c]);
+        expect(client.stats).toMatchObject({ duplicateTrades: 1, outOfOrderTrades: 1, gaps: 0 });
+      });
     });
 
     it("close() closes the socket on the server side too", async () => {
