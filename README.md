@@ -19,7 +19,7 @@ client.on("trade", (t) => console.log(t.symbol, t.price));
 await client.subscribe(["BTC-USD"]);
 ```
 
-**[SDK documentation →](./packages/sdk/README.md)**
+**[SDK documentation →](./packages/sdk/README.md)** · **[Architecture and design decisions →](./ARCHITECTURE.md)**
 
 ## Repository layout
 
@@ -45,6 +45,7 @@ pnpm format          # Prettier
 pnpm typecheck
 pnpm build           # ESM + CJS + .d.ts via tsup
 pnpm check:package   # publint + are-the-types-wrong on the packed tarball
+pnpm check:all       # everything CI runs, in the same order: run it before every push
 ```
 
 ### How it is tested
