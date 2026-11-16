@@ -46,6 +46,7 @@ pnpm typecheck
 pnpm build           # ESM + CJS + .d.ts via tsup
 pnpm check:package   # publint + are-the-types-wrong on the packed tarball
 pnpm check:all       # everything CI runs, in the same order: run it before every push
+pnpm deploy:demo     # deploy the demo from origin/main to tickforge.pages.dev
 ```
 
 ### How it is tested

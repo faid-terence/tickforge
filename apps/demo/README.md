@@ -41,6 +41,24 @@ A React + Redux Toolkit app that streams Coinbase market data through the
   colour-blind separation and contrast in both themes; direction is also shown
   with ▲/▼, never colour alone.
 
+## Deploy
+
+The demo is hosted on Cloudflare Pages. From the repo root:
+
+```sh
+pnpm deploy:demo
+```
+
+It refuses to run unless the working tree is clean and `main` matches
+`origin/main`, runs the demo tests, builds, and uploads with Wrangler. The
+deployed commit is shown in the page footer and at
+[`/version.json`](https://tickforge.pages.dev/version.json). Run it after
+every push to `main` that touches `apps/demo` or `packages/sdk`.
+
+One-time setup: `npx wrangler@4.156.1 login` with the Cloudflare account that
+owns the `tickforge` Pages project. The login stays on your machine; no
+Cloudflare secret is stored in the repository or on GitHub.
+
 ## Develop
 
 ```sh

@@ -14,6 +14,8 @@ import { slowConsumerToggled, symbolSelected, themeChanged } from "./store/setti
 import type { DemoSymbol } from "./worker/protocol";
 
 const REPO = "https://github.com/faid-terence/tickforge";
+/** Set by `pnpm deploy:demo`, so the live demo shows exactly which commit it runs. */
+const COMMIT = import.meta.env.VITE_DEMO_COMMIT;
 
 export function App() {
   const dispatch = useAppDispatch();
@@ -112,6 +114,12 @@ export function App() {
       <footer className="footer muted">
         Data from the public Coinbase Exchange feed. The SDK runs in a Web Worker and sends the UI
         one update every 100ms. <a href={REPO}>Source and docs</a>
+        {COMMIT && (
+          <>
+            {" · build "}
+            <a href={`${REPO}/commit/${COMMIT}`}>{COMMIT.slice(0, 7)}</a>
+          </>
+        )}
       </footer>
     </div>
   );

@@ -20,7 +20,8 @@
     "dev": "pnpm --filter @tickforge/demo dev",
     "size": "node scripts/bundle-size.mjs",
     "test:ci": "pnpm --filter @tickforge/sdk test:coverage && pnpm --filter './apps/**' --filter './packages/**' --filter '!@tickforge/sdk' test",
-    "check:all": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:ci && pnpm build && pnpm check:package"
+    "check:all": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:ci && pnpm build && pnpm check:package",
+    "deploy:demo": "node scripts/deploy-demo.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
