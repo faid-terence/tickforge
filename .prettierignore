@@ -1,0 +1,6 @@
+dist
+coverage
+pnpm-lock.yaml
+packages/aggregator-wasm/pkg
+packages/aggregator-wasm/target
+packages/aggregator-wasm/bench/RESULTS.md
