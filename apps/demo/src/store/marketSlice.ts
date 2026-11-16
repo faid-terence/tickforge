@@ -29,7 +29,7 @@ const initialState: MarketState = {
   liveSince: undefined,
   lastPrice: undefined,
   tick: "flat",
-  counters: { tradesReceived: 0, dropped: 0, reconnects: 0 },
+  counters: { tradesReceived: 0, dropped: 0, reconnects: 0, gaps: 0, missedTrades: 0 },
 };
 
 export const marketSlice = createSlice({

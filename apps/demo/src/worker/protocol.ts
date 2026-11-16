@@ -20,7 +20,7 @@ export type Command =
 export interface LogEntry {
   readonly id: number;
   readonly time: number;
-  readonly kind: "status" | "wire-out" | "wire-in" | "error" | "warning" | "info";
+  readonly kind: "status" | "wire-out" | "wire-in" | "gap" | "error" | "warning" | "info";
   readonly text: string;
 }
 
@@ -56,6 +56,10 @@ export interface Counters {
   readonly dropped: number;
   /** Times the connection has been re-established after a drop. */
   readonly reconnects: number;
+  /** Sequence gaps the SDK detected (its `stats.gaps`). */
+  readonly gaps: number;
+  /** Trades missed across those gaps (its `stats.missedTrades`). */
+  readonly missedTrades: number;
 }
 
 export type WorkerMessage = Batch;

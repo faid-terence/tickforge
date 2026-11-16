@@ -22,7 +22,7 @@ function batch(overrides: Partial<Batch> = {}): Batch {
     lastTrade: undefined,
     status: undefined,
     log: [],
-    counters: { tradesReceived: 0, dropped: 0, reconnects: 0 },
+    counters: { tradesReceived: 0, dropped: 0, reconnects: 0, gaps: 0, missedTrades: 0 },
     ...overrides,
   };
 }
@@ -113,7 +113,7 @@ describe("applying worker batches", () => {
         batch({
           symbol: "BTC-USD",
           trades: [trade()],
-          counters: { tradesReceived: 9, dropped: 0, reconnects: 1 },
+          counters: { tradesReceived: 9, dropped: 0, reconnects: 1, gaps: 0, missedTrades: 0 },
         }),
       ),
     );

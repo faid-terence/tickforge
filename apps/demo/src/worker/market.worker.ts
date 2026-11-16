@@ -15,6 +15,12 @@ const FLUSH_MS = 100;
 const ITERATOR_BUFFER = 20;
 /** With the slow consumer on, the loop handles at most ~4 trades per second. */
 const SLOW_CONSUMER_DELAY_MS = 250;
+/**
+ * How long "Simulate disconnect" keeps the network down. Long enough for the
+ * SDK to retry with backoff a few times and for trades to happen meanwhile,
+ * so the resulting sequence gap is visible.
+ */
+const OUTAGE_MS = 3_000;
 
 const batch = new BatchAccumulator();
 const post = (message: WorkerMessage) => {
@@ -40,6 +46,9 @@ let slowConsumer = false;
 let tradesReceived = 0;
 let reconnects = 0;
 let wasDropped = false;
+/** After a simulated outage: has the SDK reported a gap since reconnecting? */
+let awaitingGapCheck = false;
+let gapsAtReconnect = 0;
 
 function describeStatus(s: StatusEvent): string {
   if (s.state === "reconnecting") {
@@ -53,6 +62,20 @@ client.on("status", (s) => {
   if (s.state === "open" && wasDropped) {
     wasDropped = false;
     reconnects += 1;
+    if (awaitingGapCheck) {
+      awaitingGapCheck = false;
+      gapsAtReconnect = client.stats.gaps;
+      // last_match arrives right after the re-subscription ack. If no gap was
+      // reported by then, say so explicitly: "no gap" is also a verified result.
+      setTimeout(() => {
+        if (client.stats.gaps === gapsAtReconnect) {
+          batch.log(
+            "info",
+            "re-subscribed: last_match continues the sequence, no trades were missed",
+          );
+        }
+      }, 2_000);
+    }
   }
   batch.setStatus({ ...s, since: Date.now() });
   batch.log("status", describeStatus(s));
@@ -69,6 +92,15 @@ client.on("candle", (candle) => {
 
 client.on("error", (error) => {
   batch.log("error", `${error.code}: ${error.message}`);
+});
+
+client.on("gap", (g) => {
+  const where = g.reason === "reconnect" ? "while disconnected" : "mid-stream";
+  const range = g.missed === 1 ? `#${g.expected}` : `#${g.expected}–#${g.received - 1}`;
+  batch.log(
+    "gap",
+    `${g.symbol}: ${g.missed} trade${g.missed === 1 ? "" : "s"} missed ${where} (${range}); affected candles marked incomplete`,
+  );
 });
 
 client.on("warning", (warning) => {
@@ -118,10 +150,13 @@ function handle(command: Command): void {
       queue = queue.then(() => select(command.symbol));
       return;
     case "simulate-disconnect": {
-      const dropped = socket.dropAll();
+      const dropped = socket.dropAll(OUTAGE_MS);
+      if (dropped > 0) awaitingGapCheck = true;
       batch.log(
         "info",
-        dropped > 0 ? "simulated network drop: socket closed" : "no open socket to drop",
+        dropped > 0
+          ? `simulated outage: socket closed, network down for ${String(OUTAGE_MS / 1000)}s; trades keep happening on the exchange`
+          : "no open socket to drop",
       );
       return;
     }
@@ -143,10 +178,13 @@ self.addEventListener("message", (event: MessageEvent<Command>) => {
 
 setInterval(() => {
   if (!symbol) return;
+  const { gaps, missedTrades } = client.stats;
   const message = batch.flush(symbol, {
     tradesReceived,
     dropped: iterator?.dropped ?? 0,
     reconnects,
+    gaps,
+    missedTrades,
   });
   if (message) post(message);
 }, FLUSH_MS);

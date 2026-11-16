@@ -11,7 +11,7 @@ import type { ChartCandle } from "../lib/candles";
 import {
   formatChange,
   formatClock,
-  formatCompact,
+  formatVolume,
   formatMinute,
   formatPrice,
   niceTicks,
@@ -230,8 +230,8 @@ export const CandleChart = memo(function CandleChart({
                 <g
                   key={c.openTime}
                   className={`candle candle--${direction(c)}${forming ? " candle--forming" : ""}${
-                    activeIndex !== undefined && activeIndex !== i ? " candle--dim" : ""
-                  }`}
+                    c.incomplete ? " candle--incomplete" : ""
+                  }${activeIndex !== undefined && activeIndex !== i ? " candle--dim" : ""}`}
                 >
                   <line x1={cx} x2={cx} y1={layout.y(c.high)} y2={layout.y(c.low)} />
                   <rect
@@ -297,6 +297,9 @@ export const CandleChart = memo(function CandleChart({
         <span>
           <i className="swatch swatch--live" /> Forming now
         </span>
+        <span>
+          <i className="swatch swatch--incomplete" /> Incomplete (trades missed)
+        </span>
       </div>
 
       <CandleTable candles={candles} />
@@ -339,7 +342,7 @@ function CandleTooltip({
         <dt>Low</dt>
         <dd>{formatPrice(candle.low)}</dd>
         <dt>Volume</dt>
-        <dd>{formatCompact(candle.volume)}</dd>
+        <dd>{formatVolume(candle.volume)}</dd>
         {candle.source === "live" && (
           <>
             <dt>Trades</dt>
@@ -349,6 +352,9 @@ function CandleTooltip({
       </dl>
       <div className="tooltip__muted">{status}</div>
       {candle.partial && <div className="tooltip__muted">Partial: streaming began mid-minute</div>}
+      {candle.incomplete && (
+        <div className="tooltip__warn">⚠ Incomplete: a sequence gap means trades are missing</div>
+      )}
     </div>
   );
 }
@@ -380,7 +386,10 @@ function CandleTable({ candles }: { candles: readonly ChartCandle[] }) {
               <td>{formatPrice(c.low)}</td>
               <td>{formatPrice(c.close)}</td>
               <td>{formatChange((c.close - c.open) / c.open)}</td>
-              <td>{c.source === "history" ? "REST" : c.closed ? "live" : "forming"}</td>
+              <td>
+                {c.source === "history" ? "REST" : c.closed ? "live" : "forming"}
+                {c.incomplete && " · incomplete"}
+              </td>
             </tr>
           ))}
         </tbody>

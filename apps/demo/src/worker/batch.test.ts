@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { candle, T0, trade } from "../test/fixtures";
 import { BatchAccumulator } from "./batch";
 
-const counters = { tradesReceived: 0, dropped: 0, reconnects: 0 };
+const counters = { tradesReceived: 0, dropped: 0, reconnects: 0, gaps: 0, missedTrades: 0 };
 
 describe("BatchAccumulator", () => {
   it("posts nothing when nothing happened", () => {
@@ -44,6 +44,12 @@ describe("BatchAccumulator", () => {
     const acc = new BatchAccumulator();
     acc.flush("BTC-USD", counters);
     expect(acc.flush("BTC-USD", { ...counters, dropped: 3 })?.counters.dropped).toBe(3);
+    expect(
+      acc.flush("BTC-USD", { ...counters, dropped: 3, gaps: 1, missedTrades: 12 })?.counters,
+    ).toMatchObject({
+      gaps: 1,
+      missedTrades: 12,
+    });
   });
 
   it("clearMarketData() discards the previous symbol's pending data", () => {

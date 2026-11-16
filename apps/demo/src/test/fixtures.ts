@@ -29,6 +29,7 @@ export function candle(overrides: Partial<Candle> = {}): Candle {
     volume: 2,
     trades: 3,
     closed: false,
+    incomplete: false,
     ...overrides,
   };
 }

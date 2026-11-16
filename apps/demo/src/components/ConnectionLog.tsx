@@ -10,6 +10,7 @@ const PREFIX: Record<LogEntry["kind"], string> = {
   status: "state",
   "wire-out": "→ sent",
   "wire-in": "← recv",
+  gap: "gap",
   error: "error",
   warning: "warn",
   info: "demo",

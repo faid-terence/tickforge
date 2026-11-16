@@ -20,6 +20,15 @@ export function formatSize(value: number): string {
   return sizeFormat.format(value);
 }
 
+const volumeFormat = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 4 });
+/**
+ * Base-asset volume. A minute of BTC can be far below 1, so small values keep
+ * 4 significant digits (0.0004215) instead of rounding to 0; large ones are compact.
+ */
+export function formatVolume(value: number): string {
+  return value < 1_000 ? volumeFormat.format(value) : formatCompact(value);
+}
+
 const compactFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,

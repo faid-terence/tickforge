@@ -62,7 +62,8 @@ export class BatchAccumulator {
       !this.#lastCounters ||
       this.#lastCounters.tradesReceived !== counters.tradesReceived ||
       this.#lastCounters.dropped !== counters.dropped ||
-      this.#lastCounters.reconnects !== counters.reconnects;
+      this.#lastCounters.reconnects !== counters.reconnects ||
+      this.#lastCounters.gaps !== counters.gaps;
     const empty =
       this.#trades.length === 0 &&
       this.#candles.size === 0 &&

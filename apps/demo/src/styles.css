@@ -489,6 +489,18 @@ code {
 .candle--dim {
   opacity: 0.45;
 }
+/* Incomplete (a sequence gap overlapped the minute): hollow body, so it reads
+   as an estimate without relying on colour; the tooltip and table say why. */
+.candle--incomplete rect {
+  fill: var(--surface);
+  stroke-width: 1.5;
+}
+.candle--up.candle--incomplete rect {
+  stroke: var(--up);
+}
+.candle--down.candle--incomplete rect {
+  stroke: var(--down);
+}
 .chart__last line {
   stroke: var(--ink-2);
   stroke-width: 1;
@@ -535,6 +547,10 @@ code {
 }
 .swatch--down {
   background: var(--down);
+}
+.swatch--incomplete {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--ink-2);
 }
 .swatch--live {
   border-radius: 50%;
@@ -591,6 +607,10 @@ code {
 .tooltip__muted {
   color: var(--muted);
 }
+.tooltip__warn {
+  color: var(--warning-text);
+  font-weight: 600;
+}
 .tooltip dl {
   display: grid;
   grid-template-columns: auto auto;
@@ -609,7 +629,7 @@ code {
 /* ── Resilience panel ────────────────────────────────────────────────── */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 12px;
 }
@@ -626,6 +646,13 @@ code {
   margin: 2px 0 0;
   font-size: 22px;
   font-weight: 650;
+}
+.stats__sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
 }
 .stats__alert::before {
   content: "⚠ ";
@@ -722,6 +749,7 @@ code {
 .log__entry--error .log__kind {
   color: var(--down-text);
 }
+.log__entry--gap .log__kind,
 .log__entry--warning .log__kind {
   color: var(--warning-text);
 }

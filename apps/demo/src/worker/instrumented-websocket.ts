@@ -24,13 +24,27 @@ export interface WireHooks {
 /** Close code for simulated drops (4000–4999 is reserved for applications). */
 export const SIMULATED_DROP_CODE = 4000;
 
-export function instrumentWebSocket<T extends BaseSocketClass>(Base: T, hooks: WireHooks) {
+/** Thrown by the constructor during a simulated outage, like an unreachable network. */
+export class SimulatedOutageError extends Error {
+  override readonly name = "SimulatedOutageError";
+}
+
+export function instrumentWebSocket<T extends BaseSocketClass>(
+  Base: T,
+  hooks: WireHooks,
+  now: () => number = Date.now,
+) {
   const open = new Set<BaseSocket>();
+  let refuseUntil = 0;
 
   // A mixin subclass keeps the native class's full behaviour (readyState,
   // binaryType, event dispatch) and only intercepts what the demo needs.
   class InstrumentedWebSocket extends (Base as BaseSocketClass) {
     constructor(url: string) {
+      // During a simulated outage, connecting fails the way an unreachable
+      // network does; the SDK catches it and retries with backoff.
+      if (now() < refuseUntil)
+        throw new SimulatedOutageError("simulated outage: network unreachable");
       super(url);
       open.add(this);
       this.addEventListener("message", (event) => {
@@ -49,8 +63,12 @@ export function instrumentWebSocket<T extends BaseSocketClass>(Base: T, hooks: W
 
   return {
     WebSocket: InstrumentedWebSocket as unknown as T,
-    /** Closes every live socket, as if the network had dropped. Returns how many. */
-    dropAll: (): number => {
+    /**
+     * Closes every live socket, as if the network had dropped, and refuses new
+     * connections for `outageMs`. Returns how many sockets were closed.
+     */
+    dropAll: (outageMs = 0): number => {
+      refuseUntil = now() + outageMs;
       const count = open.size;
       for (const socket of open) socket.close(SIMULATED_DROP_CODE, "simulated disconnect");
       return count;
@@ -84,6 +102,11 @@ export function describeFrame(direction: "out" | "in", data: unknown): string | 
         typeof c === "object" && c !== null && (c as { name?: unknown }).name === "matches",
     );
     return `subscriptions ack [${ids(matches?.product_ids)}]`;
+  }
+  if (direction === "in" && m.type === "last_match" && typeof m.product_id === "string") {
+    const id =
+      typeof m.trade_id === "number" || typeof m.trade_id === "string" ? String(m.trade_id) : "?";
+    return `last_match ${m.product_id} #${id} (exchange's latest trade)`;
   }
   if (direction === "in" && m.type === "error") {
     return `error: ${typeof m.message === "string" ? m.message : "unknown"}`;

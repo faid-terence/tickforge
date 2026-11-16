@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { formatChange, formatDuration, formatPrice, formatSize, niceTicks } from "./format";
+import {
+  formatChange,
+  formatDuration,
+  formatPrice,
+  formatSize,
+  formatVolume,
+  niceTicks,
+} from "./format";
 
 describe("format", () => {
   it("never rounds a real trade size down to zero", () => {
     expect(formatSize(0.00000001)).toBe("0.00000001");
     expect(formatSize(1.5)).toBe("1.5");
+  });
+
+  it("never shows a small volume as 0", () => {
+    expect(formatVolume(0.00042151)).toBe("0.0004215");
+    expect(formatVolume(12.3456)).toBe("12.35");
+    expect(formatVolume(25_000)).toBe("25K");
   });
 
   it("gives small prices more decimals", () => {

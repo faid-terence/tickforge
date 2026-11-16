@@ -3,6 +3,7 @@ import {
   describeFrame,
   instrumentWebSocket,
   SIMULATED_DROP_CODE,
+  SimulatedOutageError,
   type BaseSocket,
 } from "./instrumented-websocket";
 
@@ -52,6 +53,24 @@ describe("instrumentWebSocket", () => {
   });
 });
 
+describe("simulated outage", () => {
+  it("refuses new connections until the outage ends, like an unreachable network", () => {
+    let clock = 1_000;
+    const { WebSocket, dropAll } = instrumentWebSocket(
+      FakeSocket,
+      { onSend: () => {}, onReceive: () => {} },
+      () => clock,
+    );
+    new WebSocket("wss://a");
+    expect(dropAll(3_000)).toBe(1);
+    expect(() => new WebSocket("wss://b")).toThrow(SimulatedOutageError);
+    clock += 2_999;
+    expect(() => new WebSocket("wss://b")).toThrow(/network unreachable/);
+    clock += 1;
+    expect(() => new WebSocket("wss://b")).not.toThrow();
+  });
+});
+
 describe("describeFrame", () => {
   it("summarises subscription traffic", () => {
     expect(
@@ -66,6 +85,12 @@ describe("describeFrame", () => {
         }),
       ),
     ).toBe("subscriptions ack [BTC-USD, ETH-USD]");
+    expect(
+      describeFrame(
+        "in",
+        JSON.stringify({ type: "last_match", product_id: "BTC-USD", trade_id: 42 }),
+      ),
+    ).toBe("last_match BTC-USD #42 (exchange's latest trade)");
     expect(describeFrame("in", JSON.stringify({ type: "error", message: "nope" }))).toBe(
       "error: nope",
     );

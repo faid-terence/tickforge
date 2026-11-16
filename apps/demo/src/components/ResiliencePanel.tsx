@@ -27,6 +27,17 @@ export const ResiliencePanel = memo(function ResiliencePanel({
           <dd>{counters.reconnects}</dd>
         </div>
         <div>
+          <dt>Gaps detected</dt>
+          <dd className={counters.gaps > 0 ? "stats__alert" : undefined}>
+            {counters.gaps}
+            {counters.gaps > 0 && (
+              <span className="stats__sub">
+                {formatCompact(counters.missedTrades)} trades missed
+              </span>
+            )}
+          </dd>
+        </div>
+        <div>
           <dt>Dropped by loop</dt>
           <dd className={counters.dropped > 0 ? "stats__alert" : undefined}>
             {formatCompact(counters.dropped)}
@@ -48,8 +59,10 @@ export const ResiliencePanel = memo(function ResiliencePanel({
           Simulate disconnect
         </button>
         <p className="muted">
-          Closes the socket like a network failure. Watch the log: tickforge backs off with jitter,
-          reconnects and re-subscribes on its own.
+          Takes the network down for 3 seconds. Watch the log: tickforge retries with jittered
+          backoff, reconnects and re-subscribes on its own, then compares Coinbase&apos;s
+          <code> last_match</code> with the last trade it saw to count exactly which trades were
+          missed. Affected candles are drawn hollow and marked incomplete.
         </p>
       </div>
 

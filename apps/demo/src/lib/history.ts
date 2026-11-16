@@ -57,6 +57,7 @@ export function parseHistory(symbol: DemoSymbol, body: unknown, now: number): Ch
       volume: volume as number,
       trades: 0, // not provided by the REST endpoint
       closed: true,
+      incomplete: false,
       source: "history",
       partial: false,
     });
